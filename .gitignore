@@ -3,3 +3,11 @@
 .vscode
 build
 .settings
+**/build/
+!src/**/build
+
+!gradle-app.setting
+
+!gradle-wrapper.jar
+
+.gradletasknamecache
