@@ -12,6 +12,7 @@ import jp.jaxa.iss.kibo.rpc.api.KiboRpcService;
 
 import org.opencv.core.CvException;
 import org.opencv.core.Mat;
+import org.opencv.core.Rect;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.objdetect.QRCodeDetector;
 
@@ -27,7 +28,7 @@ import java.io.IOException;
 public class YourService extends KiboRpcService {
 
     //Point qr_Point = new Point(11.21,-9.8,4.79);
-   Point qr_Point = new Point(11.353-0.02,-10.096-0.05,4.9837+0.05);
+    Point qr_Point = new Point(11.353-0.02,-10.096-0.05,4.9837+0.05);
     Quaternion qr_Quaternion = new Quaternion(0,0,-0.707f,0.707f);
     Point point_b = new Point(10.6,-8.0,4.5);
     Quaternion quaternion_b = new Quaternion(0,0,-0.707f,0.707f);
@@ -68,20 +69,42 @@ public class YourService extends KiboRpcService {
         //this.gsService.sendData(MessageType.JSON, "data", data2.toString());
         api.flashlightControlFront(1.0F);
         Mat image = api.getMatNavCam();
-        //saveImage(image);
         api.flashlightControlFront(0.0F);
+        image = cropMatimage(image);
+       // saveImage(image);
         QRCodeDetector qrcodeDetector = new QRCodeDetector();
         String content  = qrcodeDetector.detectAndDecode(image);
-        Log.i("qrcodeDetector",content);
-        if(!content.isEmpty())
-        api.sendDiscoveredQR(content);
-        Log.i("Mat getMatNavCam",image.toString());
+        //Log.i("qrcodeDetector",content);
+        if(!content.isEmpty()) {
+            api.sendDiscoveredQR(content);
+            if(content.equals("1")){
+                //saveImage(image);
+            }
+            else{
+
+            }
+        }
+        else {
+            //if in local simulation
+            Log.e("qrcodeDetector","NOT FOUND");
+            api.reportMissionCompletion();
+
+        }
+        //Log.i("Mat getMatNavCam",image.toString());
 
     }
     void takeSnapShot(){
         //api.laserControl(true);
         api.takeSnapshot();
         //api.laserControl(false);
+    }
+    Mat cropMatimage(Mat image){
+       // Rect size1 = new Rect(439,815,307,402);
+       // Rect size1 = new Rect(new Point(434,411,0),new Point(746,815,0));
+        //Log.i("image size",image.size().toString());
+        Rect size1 = new Rect(444,411,337,402);
+        return image.submat(size1);
+        //return  new Mat(image,size1);
     }
     void saveImage(Mat image){
         //src = Imgcodecs.("test.jpg")
