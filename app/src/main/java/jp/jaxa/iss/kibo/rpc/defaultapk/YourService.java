@@ -9,7 +9,6 @@ import gov.nasa.arc.astrobee.types.Quaternion;
 import jp.jaxa.iss.kibo.rpc.api.KiboRpcService;
 
 
-import org.opencv.core.Core;
 import org.opencv.core.CvException;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
@@ -47,15 +46,11 @@ public class YourService extends KiboRpcService {
 
     protected void runPlan1(){
         api.startMission();
-       // api.getRobotKinematics();
-       // api.getTrustedRobotKinematics();
+
         api.moveTo(qr_Point,qr_Quaternion,true);
-       // api.moveTo(newMove,qr_Quaternion,true);
-        //api.relativeMoveTo(qr_Point,qr_Quaternion,true);\
         Log.i(debugStr,"takeQr");
         takeQr();
-        //api.moveTo(point_b,quaternion_b,true);
-        //api.relativeMoveTo(point_b,quaternion_b,true);
+
         Log.i(debugStr,"takeSnapShot");
         takeSnapShot();
         Log.i(debugStr,"reportMissionCompletion");
@@ -82,14 +77,17 @@ public class YourService extends KiboRpcService {
         //saveImage(image);
         QRCodeDetector qrcodeDetector = new QRCodeDetector();
         String content  = qrcodeDetector.detectAndDecode(image);
-        //Log.i("qrcodeDetector",content);
+        Log.i("qrcodeDetector",content);
         if(!content.isEmpty()) {
             api.sendDiscoveredQR(content);
             if(content.equals("1")){
                 saveImage(image);
+                takeSnapShot();
+                api.reportMissionCompletion();
             }
             else{
-
+                takeSnapShot();
+                api.reportMissionCompletion();
             }
         }
         else {
@@ -109,9 +107,6 @@ public class YourService extends KiboRpcService {
     Mat cropMatimage(Mat image){
         Rect size1 = new Rect(283,493,632,461);
         image = image.submat(size1);
-        //Size sz = image.size();
-        //HoughLine(image);
-        //persPectivetransform(image);
         image = contours(image);
         return image;
     }
@@ -121,25 +116,11 @@ public class YourService extends KiboRpcService {
         Mat kernel= Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE,new Size(100,100));
         Mat mask = new Mat();
         Imgproc.morphologyEx(binary,mask,Imgproc.MORPH_DILATE,kernel);
-        //Imgcodecs.imwrite(ImagePath+"/mask.png", mask);
         List<MatOfPoint> contours = new ArrayList<>();
         Mat hirearchey = new Mat();
         Imgproc.findContours(mask,contours,hirearchey,Imgproc.RETR_TREE,Imgproc.CHAIN_APPROX_SIMPLE);
-       // Scalar color = new Scalar(0,0,255);
-        //Imgcodecs.imwrite(ImagePath+"/binary.png", binary);
-       // Mat output = image.clone();
-        //for(MatOfPoint p :contours){
-            //Log.i("MatOfPoint :"+p+" ",p.toString());
-            Rect rec =Imgproc.boundingRect(contours.get(0));
-            Mat cropContours = new Mat(image,rec);
-            Imgcodecs.imwrite(ImagePath+"/cropContours.png", cropContours);
-       // }
-
-       // Imgproc.drawContours(output,contours,-1,color,2,Imgproc.LINE_8,hirearchey,2,new org.opencv.core.Point());
-       // Imgcodecs.imwrite(ImagePath+"/contours.png", output);
-        //Log.i("binary",binary.dump());
-        //Imgcodecs.imwrite(ImagePath+"/binary.png", binary);
-       // Core.bitwise_not(binary,binary);
+        Rect rec =Imgproc.boundingRect(contours.get(0));
+        Mat cropContours = image.submat(rec);
         return cropContours;
     }
     void persPectivetransform(Mat image){
@@ -155,29 +136,6 @@ public class YourService extends KiboRpcService {
         Imgproc.warpPerspective(image,dst_Image,transform,dst_Image.size());
         Imgcodecs.imwrite(ImagePath+"/persPectivetransform.png", dst_Image);
 
-    }
-
-    void HoughLine(Mat image){
-        //Mat gray =new Mat();
-        //Imgproc.cvtColor(image,gray,Imgproc.COLOR_RGBA2GRAY);
-
-        Mat output = image.clone();
-
-        Mat lines = new Mat();
-        Mat edges = new Mat();
-       //
-        Imgproc.Canny(output,edges,10,50);
-        //Imgproc.HoughLines(edges,lines,1 ,Math.PI/180,50,50,10);
-        Imgproc.HoughLinesP(edges,lines,1 ,Math.PI/180,50,50,10);
-        Imgcodecs.imwrite(ImagePath+"/edges.png", edges);
-
-        for(int i = 0; i < lines.cols(); i++) {
-            double[] val = lines.get(0, i);
-            Imgproc.line(output, new  org.opencv.core.Point(val[0], val[1]), new  org.opencv.core.Point(val[2], val[3]), new Scalar(0, 0, 255), 2);
-        }
-
-        //Imgcodecs.imwrite(ImagePath+"/lines.png", lines);
-        Imgcodecs.imwrite(ImagePath+"/HoughLine.png", output);
     }
     void saveImage(Mat image){
         Log.i(debugStr,"saveImage");
