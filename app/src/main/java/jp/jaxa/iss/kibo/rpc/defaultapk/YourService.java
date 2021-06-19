@@ -8,10 +8,14 @@ import gov.nasa.arc.astrobee.types.Point;
 import gov.nasa.arc.astrobee.types.Quaternion;
 import jp.jaxa.iss.kibo.rpc.api.KiboRpcService;
 
+
+import org.opencv.core.Core;
 import org.opencv.core.CvException;
-import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfPoint;
+import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Rect;
+import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
@@ -20,6 +24,9 @@ import org.opencv.objdetect.QRCodeDetector;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
 
 /**
  * Class meant to handle commands from the Ground Data System and execute them in Astrobee
@@ -75,6 +82,7 @@ public class YourService extends KiboRpcService {
         //saveImage(image);
         QRCodeDetector qrcodeDetector = new QRCodeDetector();
         String content  = qrcodeDetector.detectAndDecode(image);
+        //String content  = qrcodeDetector.detectAndDecode(image);
         //Log.i("qrcodeDetector",content);
         if(!content.isEmpty()) {
             api.sendDiscoveredQR(content);
@@ -100,40 +108,71 @@ public class YourService extends KiboRpcService {
         //api.laserControl(false);
     }
     Mat cropMatimage(Mat image){
-       // Rect size1 = new Rect(439,815,307,402);
-       // Rect size1 = new Rect(new Point(434,411,0),new Point(746,815,0));
-        //Log.i("image size",image.size().toString());
         Rect size1 = new Rect(403,628,343,311);
         image = image.submat(size1);
         Size sz = image.size();
-        //Mat resiz_img = new Mat();
+        //HoughLine(image);
+        //persPectivetransform(image);
+        image = contours(image);
+        return image;
+    }
+    Mat contours(Mat image){
+        Mat binary = new Mat(image.rows(),image.cols(),image.type(),new Scalar(0));
+        Imgproc.threshold(image,binary,100,255,Imgproc.THRESH_BINARY_INV);
+        //Imgproc.adaptiveThreshold(image,binary,255,Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C,Imgproc.THRESH_BINARY,11,2);
+        /*List<MatOfPoint> contours = new ArrayList<>();
+        Mat hirearchey = new Mat();
+        Imgproc.findContours(binary,contours,hirearchey,Imgproc.RETR_TREE,Imgproc.CHAIN_APPROX_NONE);
+        Scalar color = new Scalar(0,0,255);
+        Imgcodecs.imwrite(ImagePath+"/binary.png", binary);
+        Mat output = image.clone();
+        Imgproc.drawContours(output,contours,-1,color,2,Imgproc.LINE_8,hirearchey,2,new org.opencv.core.Point());
+        Imgcodecs.imwrite(ImagePath+"/contours.png", output); */
+        Core.bitwise_not(binary,binary);
+        return binary;
+    }
+    void persPectivetransform(Mat image){
+        Mat dst_Image = image.clone();
+        org.opencv.core.Point point1= new org.opencv.core.Point();
+        org.opencv.core.Point point2= new org.opencv.core.Point();
+        org.opencv.core.Point point3= new org.opencv.core.Point();
+        org.opencv.core.Point point4= new org.opencv.core.Point();
+        Mat src = new MatOfPoint2f(point1,point2,point3,point4);
+        Mat dst = new MatOfPoint2f(new  org.opencv.core.Point(0,0),new  org.opencv.core.Point(dst_Image.width()-1,0)
+                ,new  org.opencv.core.Point(dst_Image.width()-1,dst_Image.height()-1),new  org.opencv.core.Point(0,dst_Image.height()-1));
+        Mat transform = Imgproc.getPerspectiveTransform(src,dst);
+        Imgproc.warpPerspective(image,dst_Image,transform,dst_Image.size());
+        Imgcodecs.imwrite(ImagePath+"/persPectivetransform.png", dst_Image);
 
-        // do PerspectiveTransform
-        Mat src_mat = new Mat(4,1, CvType.CV_32FC(2));
-        Mat dst_mat = new Mat(4,1, CvType.CV_32FC(2));
+    }
+
+    void HoughLine(Mat image){
+        //Mat gray =new Mat();
+        //Imgproc.cvtColor(image,gray,Imgproc.COLOR_RGBA2GRAY);
+
         Mat output = image.clone();
 
-        src_mat.put(0,0,407.0,74.0,1606.0,74.0,420.0,2589.0,1698.0,2589.0);
-        dst_mat.put(0,0,0.0,0.0,1600.0,0.0, 0.0,2500.0,1600.0,2500.0);
-        Mat perspectiveTran = Imgproc.getPerspectiveTransform(src_mat,dst_mat);
-        Imgproc.warpPerspective(image,output,perspectiveTran,sz);
-        //Imgproc.resize(image,resiz_img,sz);
-        return output;
-        //return  new Mat(image,size1);
+        Mat lines = new Mat();
+        Mat edges = new Mat();
+       //
+        Imgproc.Canny(output,edges,10,50);
+        //Imgproc.HoughLines(edges,lines,1 ,Math.PI/180,50,50,10);
+        Imgproc.HoughLinesP(edges,lines,1 ,Math.PI/180,50,50,10);
+        Imgcodecs.imwrite(ImagePath+"/edges.png", edges);
+
+        for(int i = 0; i < lines.cols(); i++) {
+            double[] val = lines.get(0, i);
+            Imgproc.line(output, new  org.opencv.core.Point(val[0], val[1]), new  org.opencv.core.Point(val[2], val[3]), new Scalar(0, 0, 255), 2);
+        }
+
+        //Imgcodecs.imwrite(ImagePath+"/lines.png", lines);
+        Imgcodecs.imwrite(ImagePath+"/HoughLine.png", output);
     }
     void saveImage(Mat image){
-        //src = Imgcodecs.("test.jpg")
-       // Mat image = api.getMatNavCam();
         Log.i(debugStr,"saveImage");
-       // File mydir = this.getFilesDir();
-        //File dataDir = this.getDataDir();
         try {
-
-           // dataDir.toPath();
-         //   Log.i("mydir",mydir.toString());
-          //  Log.i("dataDir",dataDir.toString());
             Imgcodecs.imwrite(ImagePath+"/Mat.png", image);
-            //Log.i("dataDir",dataDir.toString());
+           ;
         }
         catch (CvException e){
             Log.e(errorStr,e.toString());
