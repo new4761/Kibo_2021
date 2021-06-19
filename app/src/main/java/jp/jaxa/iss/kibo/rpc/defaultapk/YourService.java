@@ -82,7 +82,6 @@ public class YourService extends KiboRpcService {
         //saveImage(image);
         QRCodeDetector qrcodeDetector = new QRCodeDetector();
         String content  = qrcodeDetector.detectAndDecode(image);
-        //String content  = qrcodeDetector.detectAndDecode(image);
         //Log.i("qrcodeDetector",content);
         if(!content.isEmpty()) {
             api.sendDiscoveredQR(content);
@@ -108,9 +107,9 @@ public class YourService extends KiboRpcService {
         //api.laserControl(false);
     }
     Mat cropMatimage(Mat image){
-        Rect size1 = new Rect(403,628,343,311);
+        Rect size1 = new Rect(283,493,632,461);
         image = image.submat(size1);
-        Size sz = image.size();
+        //Size sz = image.size();
         //HoughLine(image);
         //persPectivetransform(image);
         image = contours(image);
@@ -118,18 +117,30 @@ public class YourService extends KiboRpcService {
     }
     Mat contours(Mat image){
         Mat binary = new Mat(image.rows(),image.cols(),image.type(),new Scalar(0));
-        Imgproc.threshold(image,binary,100,255,Imgproc.THRESH_BINARY_INV);
-        //Imgproc.adaptiveThreshold(image,binary,255,Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C,Imgproc.THRESH_BINARY,11,2);
-        /*List<MatOfPoint> contours = new ArrayList<>();
+        Imgproc.threshold(image,binary,0,255,Imgproc.THRESH_BINARY_INV);
+        Mat kernel= Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE,new Size(100,100));
+        Mat mask = new Mat();
+        Imgproc.morphologyEx(binary,mask,Imgproc.MORPH_DILATE,kernel);
+        //Imgcodecs.imwrite(ImagePath+"/mask.png", mask);
+        List<MatOfPoint> contours = new ArrayList<>();
         Mat hirearchey = new Mat();
-        Imgproc.findContours(binary,contours,hirearchey,Imgproc.RETR_TREE,Imgproc.CHAIN_APPROX_NONE);
-        Scalar color = new Scalar(0,0,255);
-        Imgcodecs.imwrite(ImagePath+"/binary.png", binary);
-        Mat output = image.clone();
-        Imgproc.drawContours(output,contours,-1,color,2,Imgproc.LINE_8,hirearchey,2,new org.opencv.core.Point());
-        Imgcodecs.imwrite(ImagePath+"/contours.png", output); */
-        Core.bitwise_not(binary,binary);
-        return binary;
+        Imgproc.findContours(mask,contours,hirearchey,Imgproc.RETR_TREE,Imgproc.CHAIN_APPROX_SIMPLE);
+       // Scalar color = new Scalar(0,0,255);
+        //Imgcodecs.imwrite(ImagePath+"/binary.png", binary);
+       // Mat output = image.clone();
+        //for(MatOfPoint p :contours){
+            //Log.i("MatOfPoint :"+p+" ",p.toString());
+            Rect rec =Imgproc.boundingRect(contours.get(0));
+            Mat cropContours = new Mat(image,rec);
+            Imgcodecs.imwrite(ImagePath+"/cropContours.png", cropContours);
+       // }
+
+       // Imgproc.drawContours(output,contours,-1,color,2,Imgproc.LINE_8,hirearchey,2,new org.opencv.core.Point());
+       // Imgcodecs.imwrite(ImagePath+"/contours.png", output);
+        //Log.i("binary",binary.dump());
+        //Imgcodecs.imwrite(ImagePath+"/binary.png", binary);
+       // Core.bitwise_not(binary,binary);
+        return cropContours;
     }
     void persPectivetransform(Mat image){
         Mat dst_Image = image.clone();
