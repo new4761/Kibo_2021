@@ -6,9 +6,11 @@ import android.util.Log;
 
 import gov.nasa.arc.astrobee.types.Point;
 import gov.nasa.arc.astrobee.types.Quaternion;
+import jp.jaxa.iss.kibo.rpc.api.KiboRpcApi;
 import jp.jaxa.iss.kibo.rpc.api.KiboRpcService;
 
 
+import org.opencv.core.Core;
 import org.opencv.core.CvException;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
@@ -70,18 +72,21 @@ public class YourService extends KiboRpcService {
 
     void takeQr(){
         //this.gsService.sendData(MessageType.JSON, "data", data2.toString());
-        api.flashlightControlFront(1.0F);
+        //api.flashlightControlFront(1.0F);
         Mat image = api.getMatNavCam();
-        api.flashlightControlFront(0.0F);
-        image = cropMatimage(image);
-        //saveImage(image);
+        //api.flashlightControlFront(0.0F);
+       // image = cropMatimage(image);
+
+       /* image = contours(image);
+        saveImage(image);
         QRCodeDetector qrcodeDetector = new QRCodeDetector();
-        String content  = qrcodeDetector.detectAndDecode(image);
+        String content  = qrcodeDetector.detectAndDecode(image); */
+        String content = contours(image,true);
         Log.i("qrcodeDetector",content);
         if(!content.isEmpty()) {
             api.sendDiscoveredQR(content);
             if(content.equals("1")){
-                saveImage(image);
+                //saveImage(image);
                 takeSnapShot();
                 api.reportMissionCompletion();
             }
@@ -104,63 +109,113 @@ public class YourService extends KiboRpcService {
         api.takeSnapshot();
         //api.laserControl(false);
     }
-    Mat cropMatimage(Mat image){
-        Rect size1 = new Rect(283,493,632,461);
-        image = image.submat(size1);
-        image = contours(image);
-        return image;
-    }
-    Mat contours(Mat image){
+    String contours(Mat image,Boolean saveImage) {
+        QRCodeDetector qrcodeDetector = new QRCodeDetector();
         Mat binary = new Mat(image.rows(),image.cols(),image.type(),new Scalar(0));
         Imgproc.threshold(image,binary,0,255,Imgproc.THRESH_BINARY_INV);
+        Mat kernel= Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE,new Size(150,150));
+        Mat mask = new Mat();;
+        Imgproc.morphologyEx(binary,mask,Imgproc.MORPH_CLOSE,kernel);
+        //Imgproc.morphologyEx(binary,mask,Imgproc.MORPH_OPEN,kernel);
+        //Imgproc.morphologyEx(binary,mask,Imgproc.MORPH_DILATE,kernel);
+        List<MatOfPoint> contours = new ArrayList<>();
+        Mat hirearchey = new Mat();
+        Mat con_img = image.clone();
+        Imgproc.findContours(mask,contours,hirearchey,Imgproc.RETR_TREE,Imgproc.CHAIN_APPROX_SIMPLE);
+        Size minsize =new Size(100,100);
+        String content  ="";
+        for(int i = 0; i < contours.size(); i++) {
+           // double contourArea = Imgproc.contourArea(contours.get(i));
+
+
+            Rect rec =Imgproc.boundingRect(contours.get(i));
+            if(rec.area()< minsize.area()||rec.width<rec.height)
+                continue;
+            Log.i("rec.area()  "+i,Double.toString(rec.area()));
+            //rec.
+            Log.i("contours x "+i,Integer.toString(rec.x)+":"+Integer.toString(rec.y));
+            Log.i("contours size "+i,Integer.toString(rec.width)+":"+Integer.toString(rec.height));
+            /*if(rec.width<rec.height)
+                continue; */
+            //rec.width = rec.width+25;
+            //rec.height = rec.height+25;
+            Mat cropContours = image.submat(rec);
+            //Core.bitwise_not(cropContours,cropContours);
+            if(saveImage) {
+                Imgcodecs.imwrite(ImagePath + "/contours_" + i + ".png", cropContours);
+                Imgproc.drawContours(con_img,contours,i,new Scalar(0,0,255),2);
+            }
+
+            content  = qrcodeDetector.detectAndDecode(cropContours);
+            //String content  = qrcodeDetector.decode(cropContours);
+            Log.i("content "+i,content);
+            if(!content.isEmpty()) {
+                Log.i("content ",content);
+                break;
+            }
+        }
+        if(saveImage) {
+            Imgcodecs.imwrite(ImagePath + "/mask.png", mask);
+            Imgcodecs.imwrite(ImagePath + "/binary.png", binary);
+            Imgcodecs.imwrite(ImagePath + "/Mat.png", image);
+            Imgcodecs.imwrite(ImagePath + "/Con.png", con_img);
+        }
+        return content;
+    }
+    Mat contours(Mat image){
+        //Mat src = image.clone();
+        //Imgproc.GaussianBlur(image,image,new Size(5,5),5);
+        Imgcodecs.imwrite(ImagePath+"/blur.png", image);
+        Mat binary = new Mat(image.rows(),image.cols(),image.type(),new Scalar(0));
+        Imgproc.threshold(image,binary,0,255,Imgproc.THRESH_BINARY_INV);
+
+        Imgcodecs.imwrite(ImagePath+"/binary.png", binary);
+
         Mat kernel= Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE,new Size(100,100));
         Mat mask = new Mat();
-        Imgproc.morphologyEx(binary,mask,Imgproc.MORPH_DILATE,kernel);
+       // Imgproc.morphologyEx(binary,mask,Imgproc.MORPH_DILATE,kernel);
+        Imgproc.morphologyEx(binary,mask,Imgproc.MORPH_CLOSE,kernel);
+        Imgcodecs.imwrite(ImagePath+"/mask.png", mask);
+
+
         List<MatOfPoint> contours = new ArrayList<>();
         Mat hirearchey = new Mat();
         Imgproc.findContours(mask,contours,hirearchey,Imgproc.RETR_TREE,Imgproc.CHAIN_APPROX_SIMPLE);
+
+        /*  List<MatOfPoint> contours = new ArrayList<>();
+        Mat hirearchey = new Mat();
+        Imgproc.findContours(binary,contours,hirearchey,Imgproc.RETR_TREE,Imgproc.CHAIN_APPROX_SIMPLE); */
+
+        //find qrcode contour
+       // MatOfPoint cou
+
+        MatOfPoint2f[] contoursPoly = new MatOfPoint2f[contours.size()];
+        Rect[] boundRect = new Rect[contours.size()];
+
+
+        for(int i = 0; i < contours.size(); i++) {
+            //if(contour)
+            contoursPoly[i] = new MatOfPoint2f();
+            Imgproc.approxPolyDP(new MatOfPoint2f(contours.get(i).toArray()), contoursPoly[i], 0.1,  true);
+            boundRect[i] = Imgproc.boundingRect(new MatOfPoint(contours.get(i).toArray()));
+            Rect rec =Imgproc.boundingRect(contours.get(i));
+            Mat cropContours = image.submat(rec);
+            Imgcodecs.imwrite(ImagePath+"/contours_"+i+".png", cropContours);
+        }
+
+
+
+/*        for(int i=0;i<contours.size();i++){
+
+            Imgcodecs.imwrite(ImagePath+"/contours_"+i+".png", contours.get(i));
+            Rect rec =Imgproc.boundingRect(contours.get(i));
+            Mat cropContours = image.submat(rec);
+        }  */
         Rect rec =Imgproc.boundingRect(contours.get(0));
         Mat cropContours = image.submat(rec);
         return cropContours;
     }
-    void persPectivetransform(Mat image){
-        Mat dst_Image = image.clone();
-        org.opencv.core.Point point1= new org.opencv.core.Point();
-        org.opencv.core.Point point2= new org.opencv.core.Point();
-        org.opencv.core.Point point3= new org.opencv.core.Point();
-        org.opencv.core.Point point4= new org.opencv.core.Point();
-        Mat src = new MatOfPoint2f(point1,point2,point3,point4);
-        Mat dst = new MatOfPoint2f(new  org.opencv.core.Point(0,0),new  org.opencv.core.Point(dst_Image.width()-1,0)
-                ,new  org.opencv.core.Point(dst_Image.width()-1,dst_Image.height()-1),new  org.opencv.core.Point(0,dst_Image.height()-1));
-        Mat transform = Imgproc.getPerspectiveTransform(src,dst);
-        Imgproc.warpPerspective(image,dst_Image,transform,dst_Image.size());
-        Imgcodecs.imwrite(ImagePath+"/persPectivetransform.png", dst_Image);
 
-    }
-    void saveImage(Mat image){
-        Log.i(debugStr,"saveImage");
-        try {
-            Imgcodecs.imwrite(ImagePath+"/Mat.png", image);
-           ;
-        }
-        catch (CvException e){
-            Log.e(errorStr,e.toString());
-        }
-        try {
-            Log.i(debugStr,"BitMap");
-            Bitmap bitimage = api.getBitmapNavCam();
-            Log.i("BitMap getBitmapNavCam",bitimage.toString());
-            FileOutputStream out = new FileOutputStream(ImagePath+"/Bitmap.png");
-            bitimage.compress(Bitmap.CompressFormat.PNG,100,out);
-            out.flush();
-            out.close();
-        }
-        catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
 
 }
 
